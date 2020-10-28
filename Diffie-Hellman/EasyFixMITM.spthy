@@ -1,0 +1,132 @@
+theory EasyFixMITM
+begin
+/* code taken from David Wong's introduction */
+
+builtins: diffie-hellman
+
+/* easy fix to MITM attack- we have a way to associate public key and identity
+therefore, we are going to announce our identity and public key when identities
+are created. We do this as an action fact AnnouceIdentity b/c an adversary
+cannot alter this. This will make sure that when we talk with a particular
+identity, we know what their public key should be.
+*/
+rule create_identities:
+    let
+        pubkey = 'g'^~privkey
+    in
+    [Fr(~privkey)]
+    --[AnnounceIdentity($A, pubkey)]->
+    [!Identity($A, ~privkey, pubkey)]
+
+rule client_hello:
+    [!Identity($client, ~clientprivkey, clientpubkey), !Identity($server, ~serverprivkey, serverpubkey)]
+    -->
+    [Out(<'client_hello', $client, $server, clientpubkey>)]
+
+rule receive_client_hello_send_server_hello:
+	let
+       sessionkey = clientpubkey^~serverprivkey     
+    in
+    /* add client public key into the create session event so that we can cross reference this with our
+    annoucned identities from create_identities */
+    [!Identity($server, ~serverprivkey, serverpubkey), In(<'client_hello', client, $server, clientpubkey>)]
+    --[ServerCreateSession($server, client, sessionkey, clientpubkey)]->
+    [Session($server, client, sessionkey), Out(<'server_hello', $server, client, serverpubkey>)]
+
+rule receive_server_hello:
+	let
+        sessionkey = serverpubkey^~clientprivkey
+    in
+    /* add server public key into session so that we can use it to cross reference with our
+    announced identities from create_identities */
+    [!Identity($client, ~clientprivkey, clientpubkey), In(<'server_hello', server, $client, serverpubkey>)]
+    --[ClientCreateSession($client, server, sessionkey, serverpubkey)]->
+    [Session($client, server, sessionkey)]
+
+lemma OriginalMITM:
+    "
+    /* this is the original lemma that will not work b/c adversary can MITM
+    we have to include public key to create session because we added that */
+    /* this lemma won't pass, but the other two will */
+    All client server clientpubkey serverpubkey sessionkey1 sessionkey2 #i #j.
+    (
+        ClientCreateSession(client, server, sessionkey1, serverpubkey) @ #i &
+        ServerCreateSession(server, client, sessionkey2, clientpubkey) @ #j &
+        #j < #i &
+        not(client = server)
+    )
+    ==> not(Ex #k1 #k2 . K(sessionkey1) @ #k1 & K(sessionkey2) @ #k2)
+    "
+
+lemma FixedMITM:
+    "
+    /* here we use AnnounceIdentity to ensure that we are actually talking to the server
+    since AnnounceIdentity is an action fact, this can't be altered by an adversary, and
+    so we know that serverpubkey and clientpubkey actually correspond to the desired
+    client and server */
+    All client server clientpubkey1 clientpubkey2 serverpubkey1
+    serverpubkey2 sessionkey1 sessionkey2 #i #j #k #l.
+    (
+        ClientCreateSession(client, server, sessionkey1, serverpubkey1) @ #i &
+        ServerCreateSession(server, client, sessionkey2, clientpubkey1) @ #j &
+        AnnounceIdentity(server, serverpubkey2) @ #k &
+        AnnounceIdentity(client, clientpubkey2) @ #l &
+        #j < #i &
+        not(client = server) &
+        /* these next two equalities ensure that the client/server public keys
+        are tied to the correct identities */
+        clientpubkey1 = clientpubkey2 &
+        serverpubkey1 = serverpubkey2
+    )
+    ==> not(Ex #k1 #k2 . K(sessionkey1) @ #k1 & K(sessionkey2) @ #k2)
+    "
+
+lemma MITMAlternate:
+    /* alternative way of proving this property:
+    we say that when we create a session key, the following can happen:
+    1. the attacker does not learn either session key
+    2. the attacker learns the session key, but they are only able to do so
+    by switching the public key so that the public key does not match the identity
+    of either the client or server
+
+    In plain English, this tells us that the only way for an attacker to recover
+    the session key is for identities to be disassociated with public keys. So,
+    if we are able to associate the two, MITM attack prevented */
+    "
+    /* when we created a session key... */
+    All client server clientpubkey serverpubkey sessionkey1 sessionkey2 #i #j.
+    (
+        ClientCreateSession(client, server, sessionkey1, serverpubkey) @ #i &
+        ServerCreateSession(server, client, sessionkey2, clientpubkey) @ #j &
+        #j < #i &
+        not(client = server)
+    )
+    /* the following can happen... */
+    ==> 
+    /* 1. the attacker does not learn either session key */
+    not(Ex #k1 #k2 . K(sessionkey1) @ #k1 & K(sessionkey2) @ #k2) |
+    /* 2. the attacker learns the session key, but they are only able to do so
+    by switching the public key so that the public key does not match the identity
+    of either the client or server */
+
+        /* this line represents the attacker learning the session key */
+        ((Ex #k3 #k4 . K(sessionkey1) @ #k3 & K(sessionkey2) @ #k4) &
+            (
+                /* this line represents the server public key being different than 
+                the public key associated with the servers identity */
+                (Ex #k5 serverorigpubkey . 
+                    AnnounceIdentity(server, serverorigpubkey) @ #k5 &
+                    not(serverorigpubkey = serverpubkey)
+                ) |
+                /* or the attacker could switch the public key of client */
+                /* this line represents the client public key being different than 
+                the public key associated with the clients identity */
+                (Ex #k6 clientorigpubkey . 
+                    AnnounceIdentity(client, clientorigpubkey) @ #k6 &
+                    not(clientorigpubkey = clientpubkey)
+                )
+            )
+        )
+    "
+
+end
