@@ -16,8 +16,9 @@ No Tamarin parse, well-formedness check, or proof result is claimed for this rev
 Neither Tamarin nor Maude was installed before preparation. An installation from
 the officially documented Homebrew tap stopped because Homebrew refused to load
 the Maude formula from a tap it did not yet trust. No extra trust permission was
-granted. Tamarin's formula was registered as trusted by the installer, and the
-official tap was added; the prover installation did not complete.
+granted. The installer added the official tap and temporarily trusted Tamarin's
+formula; that new formula trust entry was then removed to restore the prior trust
+boundary. The prover installation did not complete.
 
 The intended versions are Tamarin 1.12.0 and Maude 3.5.1. Once these are available,
 run `python3 check_models.py`, inspect the retained logs, and update this record
