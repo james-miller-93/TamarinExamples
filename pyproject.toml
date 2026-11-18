@@ -1,0 +1,31 @@
+[project]
+name = "tamarin-examples"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff==0.17.2",
+    "ty==0.0.91",
+    "prek==0.5.7",
+    "pytest==9.1.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ty.rules]
+possibly-unresolved-reference = "error"

@@ -1,0 +1,27 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Python lint
+        entry: uv run --locked ruff check .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-format
+        name: Python format
+        entry: uv run --locked ruff format --check .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ty
+        name: Python types
+        entry: uv run --locked ty check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: tests
+        name: Behavioral tests
+        entry: uv run --locked pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true

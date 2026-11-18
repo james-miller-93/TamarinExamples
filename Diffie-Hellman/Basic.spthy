@@ -1,6 +1,7 @@
 theory Basic
 begin
-/* code taken from David Wong's introduction */
+/* Adapted from David Wong's Tamarin Prover Introduction.
+   See README.md for attribution and the limits of these models. */
 
 builtins: diffie-hellman
 
@@ -11,26 +12,37 @@ rule create_identities:
     [Fr(~privkey)]-->[!Identity($A, ~privkey, pubkey)]
 
 rule client_hello:
-    [!Identity($client, ~clientprivkey, clientpubkey), !Identity($server, ~serverprivkey, serverpubkey)]
+    [!Identity($client, ~clientprivkey, clientpubkey),
+     !Identity($server, ~serverprivkey, serverpubkey)]
     -->
     [Out(<'client_hello', $client, $server, clientpubkey>)]
 
 rule receive_client_hello_send_server_hello:
-	let
-       sessionkey = clientpubkey^~serverprivkey     
+    let
+       sessionkey = clientpubkey^~serverprivkey
     in
-    [!Identity($server, ~serverprivkey, serverpubkey), In(<'client_hello', client, $server, clientpubkey>)]
+    [!Identity($server, ~serverprivkey, serverpubkey),
+     In(<'client_hello', client, $server, clientpubkey>)]
     --[ServerCreateSession($server, client, sessionkey)]->
     [Session($server, client, sessionkey), Out(<'server_hello', $server, client, serverpubkey>)]
 
 rule receive_server_hello:
-	let
+    let
         sessionkey = serverpubkey^~clientprivkey
     in
-    [!Identity($client, ~clientprivkey, clientpubkey), In(<'server_hello', server, $client, serverpubkey>)]
+    [!Identity($client, ~clientprivkey, clientpubkey),
+     In(<'server_hello', server, $client, serverpubkey>)]
     --[ClientCreateSession($client, server, sessionkey)]->
     [Session($client, server, sessionkey)]
 
+/* An honest run with distinct peers and a shared key must be reachable. */
+lemma HonestRun: exists-trace
+    "Ex client server key #i #j.
+        ClientCreateSession(client, server, key) @ #i &
+        ServerCreateSession(server, client, key) @ #j &
+        #j < #i & not(client = server)"
+
+/* Expected attack: unauthenticated public keys permit MITM. */
 lemma MITM:
     "
     All client server sessionkey1 sessionkey2 #i #j.
